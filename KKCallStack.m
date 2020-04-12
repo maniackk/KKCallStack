@@ -9,6 +9,40 @@
 #import "KKCallStack.h"
 #include "KKCallStackSymbol.h"
 
+#if defined(__arm64__)
+//#define DETAG_INSTRUCTION_ADDRESS(A) ((A) & ~(3UL))
+#define KK_THREAD_STATE_COUNT ARM_THREAD_STATE64_COUNT
+#define KK_THREAD_STATE ARM_THREAD_STATE64
+#define KK_FRAME_POINTER __fp
+#define KK_LINKER_POINTER __lr
+#define KK_INSTRUCTION_ADDRESS __pc
+
+#elif defined(__arm__)
+//#define DETAG_INSTRUCTION_ADDRESS(A) ((A) & ~(1UL))
+#define KK_THREAD_STATE_COUNT ARM_THREAD_STATE_COUNT
+#define KK_THREAD_STATE ARM_THREAD_STATE
+#define KK_FRAME_POINTER __r[7]
+#define KK_LINKER_POINTER __lr
+#define KK_INSTRUCTION_ADDRESS __pc
+
+#elif defined(__x86_64__)
+//#define DETAG_INSTRUCTION_ADDRESS(A) (A)
+#define KK_THREAD_STATE_COUNT x86_THREAD_STATE64_COUNT
+#define KK_THREAD_STATE x86_THREAD_STATE64
+#define KK_FRAME_POINTER __rbp
+#define KK_LINKER_POINTER __rlr
+#define KK_INSTRUCTION_ADDRESS __rip
+
+#elif defined(__i386__)
+//#define DETAG_INSTRUCTION_ADDRESS(A) (A)
+#define KK_THREAD_STATE_COUNT x86_THREAD_STATE32_COUNT
+#define KK_THREAD_STATE x86_THREAD_STATE32
+#define KK_FRAME_POINTER __ebp
+#define KK_LINKER_POINTER __elr
+#define KK_INSTRUCTION_ADDRESS __eip
+
+#endif
+
 typedef struct {
     const uintptr_t *fp; //stp fp, lr, ...
     const uintptr_t lr;
@@ -34,6 +68,7 @@ static int StackMaxDepth = 32;
             return @"fail get all threads!";
         }
         NSMutableString *resultStr = [NSMutableString string];
+        [resultStr appendFormat:@"当前线程数量：%d\n", thread_count];
         for (int i = 0; i < thread_count; i++) {
             [resultStr appendFormat:@"%@", [self callStackWithThread_t:threads[i]]];
         }
@@ -53,7 +88,10 @@ static int StackMaxDepth = 32;
     {
         result = [self callStackSymbolsWithCurrentThread];
     }
+    
+    printf("\n⚠️⚠️⚠️⚠️⚠️⚠️👇堆栈👇⚠️⚠️⚠️⚠️⚠️⚠️\n");
     NSLog(@"\n%@", result);
+    printf("⚠️⚠️⚠️⚠️⚠️⚠️👆堆栈👆⚠️⚠️⚠️⚠️⚠️⚠️\n\n");
     return result;
 }
 
@@ -75,9 +113,9 @@ static int StackMaxDepth = 32;
         return [NSString stringWithFormat:@"fail get thread(%u) state", thread];
     }
     
-    uintptr_t pc = machineContext.__ss.__pc;
-    uintptr_t fp = machineContext.__ss.__fp;
-    uintptr_t lr = machineContext.__ss.__lr;
+    uintptr_t pc = machineContext.__ss.KK_INSTRUCTION_ADDRESS;
+    uintptr_t fp = machineContext.__ss.KK_FRAME_POINTER;
+    uintptr_t lr = machineContext.__ss.KK_LINKER_POINTER;
 
     uintptr_t pcArr[StackMaxDepth];
     int i = 0;
@@ -145,8 +183,8 @@ void freeMemory(CallStackInfo *csInfo)
 
 bool getMachineContext(thread_t thread, _STRUCT_MCONTEXT64 *machineContext)
 {
-    mach_msg_type_number_t state_count = ARM_THREAD_STATE64_COUNT;
-    return KERN_SUCCESS == thread_get_state(thread, ARM_THREAD_STATE64, (thread_state_t
+    mach_msg_type_number_t state_count = KK_THREAD_STATE_COUNT;
+    return KERN_SUCCESS == thread_get_state(thread, KK_THREAD_STATE, (thread_state_t
                                                                          )&machineContext->__ss, &state_count);
 }
 

@@ -10,6 +10,7 @@
 #define KKCallStackSymbol_h
 
 #include <stdio.h>
+#include <stdint.h>
 
 typedef struct {
     uint64_t addr;
